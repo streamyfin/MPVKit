@@ -1,0 +1,245 @@
+From da9badfcbaa7198760a36523f3ca8a5d5b3f078a Mon Sep 17 00:00:00 2001
+From: Alex Kim <alexkim@Alexs-MacBook-Pro.local>
+Date: Sat, 23 Aug 2025 20:11:28 +1000
+Subject: [PATCH] AVfoundation video output
+
+---
+ meson.build                 |   8 ++
+ meson.options               |   1 +
+ video/out/vo.c              |   4 +
+ video/out/vo_avfoundation.m | 172 ++++++++++++++++++++++++++++++++++++
+ 4 files changed, 185 insertions(+)
+ create mode 100644 video/out/vo_avfoundation.m
+
+diff --git a/meson.build b/meson.build
+index 7572769e0e..d74fae0319 100644
+--- a/meson.build
++++ b/meson.build
+@@ -813,6 +813,14 @@ if features['avfoundation']
+     sources += files('audio/out/ao_avfoundation.m')
+ endif
+ 
++vo_avfoundation = dependency('appleframeworks', modules: ['AVFoundation', 'CoreMedia', 'CoreVideo'],
++                             required: get_option('vo-avfoundation'))
++features += {'vo-avfoundation': vo_avfoundation.found()}
++if features['vo-avfoundation']
++    dependencies += vo_avfoundation
++    sources += files('video/out/vo_avfoundation.m')
++endif
++
+ coreaudio = dependency('appleframeworks', modules: ['CoreFoundation', 'CoreAudio',
+                        'AudioUnit', 'AudioToolbox'], required: get_option('coreaudio'))
+ features += {'coreaudio': coreaudio.found()}
+diff --git a/meson.options b/meson.options
+index dae0a333ef..b8d3ae30ba 100644
+--- a/meson.options
++++ b/meson.options
+@@ -60,6 +60,7 @@ option('d3d11', type: 'feature', value: 'auto', description: 'Direct3D 11 video
+ option('direct3d', type: 'feature', value: 'auto', description: 'Direct3D support')
+ option('dmabuf-wayland', type: 'feature', value: 'auto', description: 'dmabuf-wayland video output')
+ option('drm', type: 'feature', value: 'auto', description: 'Direct Rendering Manager (DRM)')
++option('vo-avfoundation', type: 'feature', value: 'auto', description: 'AVFoundation video output')
+ option('egl', type: 'feature', value: 'auto', description: 'EGL 1.4')
+ option('egl-android', type: 'feature', value: 'auto', description: 'Android EGL support')
+ option('egl-angle', type: 'feature', value: 'auto', description: 'OpenGL ANGLE headers')
+diff --git a/video/out/vo.c b/video/out/vo.c
+index 7b5df4b886..3b8bbd0b39 100644
+--- a/video/out/vo.c
++++ b/video/out/vo.c
+@@ -46,6 +46,7 @@
+ #include "osdep/io.h"
+ #include "osdep/threads.h"
+ 
++extern const struct vo_driver video_out_avfoundation;
+ extern const struct vo_driver video_out_mediacodec_embed;
+ extern const struct vo_driver video_out_x11;
+ extern const struct vo_driver video_out_vdpau;
+@@ -69,6 +70,9 @@ extern const struct vo_driver video_out_kitty;
+ 
+ static const struct vo_driver *const video_out_drivers[] =
+ {
++#if HAVE_VO_AVFOUNDATION
++    &video_out_avfoundation,
++#endif
+ #if HAVE_ANDROID
+     &video_out_mediacodec_embed,
+ #endif
+diff --git a/video/out/vo_avfoundation.m b/video/out/vo_avfoundation.m
+new file mode 100644
+index 0000000000..9d55c9ff4c
+--- /dev/null
++++ b/video/out/vo_avfoundation.m
+@@ -0,0 +1,172 @@
++/*
++ * This file is part of mpv.
++ *
++ * mpv is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * mpv is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <libavutil/hwcontext.h>
++#include <libavutil/hwcontext_videotoolbox.h>
++
++#include "common/common.h"
++#include "osdep/timer.h"
++#include "vo.h"
++#include "video/mp_image.h"
++#include "video/hwdec.h"
++
++#import <CoreMedia/CoreMedia.h>
++#import <AVFoundation/AVFoundation.h>
++
++struct priv {
++    struct mp_hwdec_ctx hwctx;
++
++    struct mp_image *next_image;
++    int64_t next_vo_pts;
++    __strong AVSampleBufferDisplayLayer *displayLayer;
++};
++
++static AVBufferRef *create_videotoolbox_device_ref(struct vo *vo)
++{
++    AVBufferRef *device_ref = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VIDEOTOOLBOX);
++    if (!device_ref)
++        return NULL;
++
++    if (av_hwdevice_ctx_init(device_ref) < 0)
++        av_buffer_unref(&device_ref);
++
++    return device_ref;
++}
++
++static int preinit(struct vo *vo)
++{
++    struct priv *p = vo->priv;
++
++    if (!vo->opts->WinID) {
++        MP_ERR(vo, "No AVSampleBufferDisplayLayer provided via --wid\n");
++        return -1;
++    }
++    p->displayLayer = (__bridge AVSampleBufferDisplayLayer *)(intptr_t)(vo->opts->WinID);
++
++    vo->hwdec_devs = hwdec_devices_create();
++    p->hwctx = (struct mp_hwdec_ctx){
++        .driver_name = "avfoundation",
++        .av_device_ref = create_videotoolbox_device_ref(vo),
++        .hw_imgfmt = IMGFMT_VIDEOTOOLBOX,
++    };
++    hwdec_devices_add(vo->hwdec_devs, &p->hwctx);
++
++    return 0;
++}
++
++static void flip_page(struct vo *vo)
++{
++    struct priv *p = vo->priv;
++    struct mp_image *img = p->next_image;
++
++    if (!img)
++        return;
++
++    CVPixelBufferRef pixbuf = (CVPixelBufferRef)img->planes[3];
++    CMSampleTimingInfo info = {
++        .presentationTimeStamp = kCMTimeZero,
++        .duration = kCMTimeInvalid,
++        .decodeTimeStamp = kCMTimeInvalid
++    };
++
++    CMSampleBufferRef buf = NULL;
++    CMFormatDescriptionRef format = NULL;
++    CMVideoFormatDescriptionCreateForImageBuffer(NULL, pixbuf, &format);
++    CMSampleBufferCreateReadyWithImageBuffer(
++        NULL,
++        pixbuf,
++        format,
++        &info,
++        &buf
++    );
++    CFRelease(format);
++
++    CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(buf, YES);
++    CFDictionarySetValue(
++        (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0),
++        kCMSampleAttachmentKey_DisplayImmediately,
++        kCFBooleanTrue
++    );
++
++    [p->displayLayer enqueueSampleBuffer:buf];
++
++    CFRelease(buf);
++    mp_image_unrefp(&p->next_image);
++}
++
++static bool draw_frame(struct vo *vo, struct vo_frame *frame)
++{
++    struct priv *p = vo->priv;
++
++    mp_image_t *mpi = NULL;
++    if (!frame->redraw && !frame->repeat)
++        mpi = mp_image_new_ref(frame->current);
++
++    talloc_free(p->next_image);
++    p->next_image = mpi;
++    p->next_vo_pts = frame->pts;
++
++    return true;
++}
++
++static int query_format(struct vo *vo, int format)
++{
++    return format == IMGFMT_VIDEOTOOLBOX;
++}
++
++static int reconfig(struct vo *vo, struct mp_image_params *params)
++{
++    return 0;
++}
++
++static void uninit(struct vo *vo)
++{
++    struct priv *p = vo->priv;
++    mp_image_unrefp(&p->next_image);
++
++    [p->displayLayer flushAndRemoveImage];
++
++    hwdec_devices_remove(vo->hwdec_devs, &p->hwctx);
++    av_buffer_unref(&p->hwctx.av_device_ref);
++}
++
++static int control(struct vo *vo, uint32_t request, void *data)
++{
++    return VO_NOTIMPL;
++}
++
++
++#define OPT_BASE_STRUCT struct priv
++static const struct m_option options[] = {
++    {0},
++};
++
++const struct vo_driver video_out_avfoundation = {
++    .description = "AVFoundation AVSampleBufferDisplayLayer (macOS/iOS)",
++    .name = "avfoundation",
++    .caps = VO_CAP_NORETAIN,
++    .preinit = preinit,
++    .query_format = query_format,
++    .control = control,
++    .draw_frame = draw_frame,
++    .flip_page = flip_page,
++    .reconfig = reconfig,
++    .uninit = uninit,
++    .priv_size = sizeof(struct priv),
++    .options = options,
++    .options_prefix = "avfoundation",
++};
+\ No newline at end of file
