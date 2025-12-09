@@ -94,6 +94,10 @@ final class MPVAVFoundationViewController: UIViewController {
         // Use AVFoundation video output - required for PiP support
         checkError(mpv_set_option_string(mpv, "vo", "avfoundation"))
         
+        // Enable composite OSD mode - renders subtitles directly onto video frames using GPU
+        // This is better for PiP as subtitles are baked into the video
+        checkError(mpv_set_option_string(mpv, "avfoundation-composite-osd", "yes"))
+        
         // Hardware decoding with VideoToolbox - REQUIRED for vo_avfoundation
         // vo_avfoundation ONLY accepts IMGFMT_VIDEOTOOLBOX frames
         checkError(mpv_set_option_string(mpv, "hwdec", "videotoolbox"))
@@ -301,9 +305,11 @@ final class MPVAVFoundationViewController: UIViewController {
                     
                 case MPV_EVENT_FILE_LOADED:
                     print("mpv: file loaded")
+                    self.printSubtitleInfo()
                     
                 case MPV_EVENT_PLAYBACK_RESTART:
                     print("mpv: playback restart")
+                    self.printSubtitleInfo()
                     
                 default:
                     if let eventName = mpv_event_name(event!.pointee.event_id) {
@@ -349,6 +355,63 @@ final class MPVAVFoundationViewController: UIViewController {
         if status < 0 {
             print("MPV API error: \(String(cString: mpv_error_string(status)))")
         }
+    }
+    
+    // MARK: - Subtitle Debug Info
+    
+    private func printSubtitleInfo() {
+        guard mpv != nil else { return }
+        
+        print("\n========== SUBTITLE INFO ==========")
+        
+        // Get current subtitle ID
+        var sid: Int64 = 0
+        mpv_get_property(mpv, "sid", MPV_FORMAT_INT64, &sid)
+        print("Current SID: \(sid)")
+        
+        // Get subtitle delay
+        var subDelay: Double = 0
+        mpv_get_property(mpv, "sub-delay", MPV_FORMAT_DOUBLE, &subDelay)
+        print("Sub Delay: \(subDelay)")
+        
+        // Get sub-visibility
+        var subVisible: Int64 = 0
+        mpv_get_property(mpv, "sub-visibility", MPV_FORMAT_FLAG, &subVisible)
+        print("Sub Visibility: \(subVisible > 0 ? "YES" : "NO")")
+        
+        // Get track count
+        var trackCount: Int64 = 0
+        mpv_get_property(mpv, "track-list/count", MPV_FORMAT_INT64, &trackCount)
+        print("Total Tracks: \(trackCount)")
+        
+        // List all subtitle tracks
+        print("\n--- Available Tracks ---")
+        for i in 0..<trackCount {
+            // Get track type
+            if let typeStr = getString("track-list/\(i)/type") {
+                // Get track ID
+                var trackId: Int64 = 0
+                mpv_get_property(mpv, "track-list/\(i)/id", MPV_FORMAT_INT64, &trackId)
+                
+                // Get track title
+                let title = getString("track-list/\(i)/title") ?? "(no title)"
+                
+                // Get track language
+                let lang = getString("track-list/\(i)/lang") ?? "(no lang)"
+                
+                // Get codec
+                let codec = getString("track-list/\(i)/codec") ?? "(unknown)"
+                
+                // Check if selected
+                var selected: Int64 = 0
+                mpv_get_property(mpv, "track-list/\(i)/selected", MPV_FORMAT_FLAG, &selected)
+                
+                let marker = selected > 0 ? ">>> " : "    "
+                print("\(marker)[\(typeStr)] ID=\(trackId): \(title) [\(lang)] codec=\(codec)")
+            }
+        }
+        
+        print("====================================\n")
     }
     
     deinit {
