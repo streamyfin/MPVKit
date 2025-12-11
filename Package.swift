@@ -91,38 +91,46 @@ let package = Package(
             ]
         ),
 
-        // GPL versions - using local non-GPL build (rebuild with 'make build-GPL' for GPL)
+        // GPL versions - using release binaries from avfoundation-support branch
         .binaryTarget(
             name: "Libmpv-GPL",
-            path: "dist/release/Libmpv.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libmpv.xcframework.zip",
+            checksum: "651a2bd6c43fdb38c940be4f1954b9a142456c50765609d3d1f1e4e5a48b5f94"
         ),
         .binaryTarget(
             name: "Libavcodec-GPL",
-            path: "dist/release/Libavcodec.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libavcodec.xcframework.zip",
+            checksum: "742e188119efc6f62e22739401b7545277c8e0cab40df4b077b427eac4ea4e7d"
         ),
         .binaryTarget(
             name: "Libavdevice-GPL",
-            path: "dist/release/Libavdevice.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libavdevice.xcframework.zip",
+            checksum: "0a806764fea4fda05095b7626df216029ef03246c42599d793e788384124ef11"
         ),
         .binaryTarget(
             name: "Libavformat-GPL",
-            path: "dist/release/Libavformat.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libavformat.xcframework.zip",
+            checksum: "23c53227f19d10c73b1faf39a328c846b3d8b47310045df7abe3eb3292005b12"
         ),
         .binaryTarget(
             name: "Libavfilter-GPL",
-            path: "dist/release/Libavfilter.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libavfilter.xcframework.zip",
+            checksum: "45d091004e54720cee1c6098da1602a60b09e6ede01db83e4593ffafcbab740f"
         ),
         .binaryTarget(
             name: "Libavutil-GPL",
-            path: "dist/release/Libavutil.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libavutil.xcframework.zip",
+            checksum: "805ff8ae222ff68fe5dab2871fb583ec63e6aacdc0355e71e627691d9273ee5e"
         ),
         .binaryTarget(
             name: "Libswresample-GPL",
-            path: "dist/release/Libswresample.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libswresample.xcframework.zip",
+            checksum: "961da78874dff928b9011353b6a28e111b0d8ba4ee55c46c0148eb914a0a53ae"
         ),
         .binaryTarget(
             name: "Libswscale-GPL",
-            path: "dist/release/Libswscale.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libswscale.xcframework.zip",
+            checksum: "1d0559cce3579691bad0abb141f593b6185592832719da1d74a9342b72c3cb97"
         ),
         //AUTO_GENERATE_TARGETS_BEGIN//
 
@@ -160,30 +168,35 @@ let package = Package(
             checksum: "8be5568b3bcaa7378e470b6eb2b11f1af86b5d5637229d1d3eb725a2e0c4b9da"
         ),
 
-        // Local libass 0.17.4 builds (created from dist/libass-0.17.4)
+        // Local libass 0.17.4 builds (from avfoundation-support release)
         .binaryTarget(
             name: "Libunibreak",
-            path: "dist/release/Libunibreak.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libunibreak.xcframework.zip",
+            checksum: "cd0d2e9f1be69aa2c83cb1325494bba2410e18e7f87f8570634a5228e771990c"
         ),
 
         .binaryTarget(
             name: "Libfreetype",
-            path: "dist/release/Libfreetype.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libfreetype.xcframework.zip",
+            checksum: "5c8cdb23ecf4c16646c77bf0ee0b4382e088a14c548baf3dc25f53ad77741353"
         ),
 
         .binaryTarget(
             name: "Libfribidi",
-            path: "dist/release/Libfribidi.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libfribidi.xcframework.zip",
+            checksum: "54227fe68fc35a12033550f727f5beebcf00ebc6f59f6b5a3965f75384a9017c"
         ),
 
         .binaryTarget(
             name: "Libharfbuzz",
-            path: "dist/release/Libharfbuzz.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libharfbuzz.xcframework.zip",
+            checksum: "dbdc09260566195c0c9feb0e752a95f2607170233ef5dc01dcdfec1aede2c277"
         ),
 
         .binaryTarget(
             name: "Libass",
-            path: "dist/release/Libass.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libass.xcframework.zip",
+            checksum: "4ce1f49e45c31e88bf8f6bc11eb5d76c92622ec3cf2547e0b1ecc7d89b3eb3ef"
         ),
 
         .binaryTarget(
@@ -242,31 +255,38 @@ let package = Package(
 
         .binaryTarget(
             name: "Libavcodec",
-            path: "dist/release/Libavcodec.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libavcodec.xcframework.zip",
+            checksum: "742e188119efc6f62e22739401b7545277c8e0cab40df4b077b427eac4ea4e7d"
         ),
         .binaryTarget(
             name: "Libavdevice",
-            path: "dist/release/Libavdevice.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libavdevice.xcframework.zip",
+            checksum: "0a806764fea4fda05095b7626df216029ef03246c42599d793e788384124ef11"
         ),
         .binaryTarget(
             name: "Libavformat",
-            path: "dist/release/Libavformat.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libavformat.xcframework.zip",
+            checksum: "23c53227f19d10c73b1faf39a328c846b3d8b47310045df7abe3eb3292005b12"
         ),
         .binaryTarget(
             name: "Libavfilter",
-            path: "dist/release/Libavfilter.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libavfilter.xcframework.zip",
+            checksum: "45d091004e54720cee1c6098da1602a60b09e6ede01db83e4593ffafcbab740f"
         ),
         .binaryTarget(
             name: "Libavutil",
-            path: "dist/release/Libavutil.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libavutil.xcframework.zip",
+            checksum: "805ff8ae222ff68fe5dab2871fb583ec63e6aacdc0355e71e627691d9273ee5e"
         ),
         .binaryTarget(
             name: "Libswresample",
-            path: "dist/release/Libswresample.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libswresample.xcframework.zip",
+            checksum: "961da78874dff928b9011353b6a28e111b0d8ba4ee55c46c0148eb914a0a53ae"
         ),
         .binaryTarget(
             name: "Libswscale",
-            path: "dist/release/Libswscale.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libswscale.xcframework.zip",
+            checksum: "1d0559cce3579691bad0abb141f593b6185592832719da1d74a9342b72c3cb97"
         ),
 
         .binaryTarget(
@@ -283,7 +303,8 @@ let package = Package(
 
         .binaryTarget(
             name: "Libmpv",
-            path: "dist/release/Libmpv.xcframework.zip"
+            url: "https://github.com/Alexk2309/MPVKit/releases/download/avfoundation-support/Libmpv.xcframework.zip",
+            checksum: "651a2bd6c43fdb38c940be4f1954b9a142456c50765609d3d1f1e4e5a48b5f94"
         ),
         //AUTO_GENERATE_TARGETS_END//
     ]
