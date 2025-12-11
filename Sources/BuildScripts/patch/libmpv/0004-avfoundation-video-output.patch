@@ -1,4 +1,4 @@
-From a9add114d0218d55a433ddf4781bdc3a94dcd093 Mon Sep 17 00:00:00 2001
+From 445570e677c00e9d222b864f2b480b5677da6cda Mon Sep 17 00:00:00 2001
 From: Alex Kim <alexkim@Alexs-MacBook-Pro.local>
 Date: Sat, 23 Aug 2025 20:11:28 +1000
 Subject: [PATCH] AVfoundation video output
@@ -7,8 +7,8 @@ Subject: [PATCH] AVfoundation video output
  meson.build                 |   8 +
  meson.options               |   1 +
  video/out/vo.c              |   4 +
- video/out/vo_avfoundation.m | 625 ++++++++++++++++++++++++++++++++++++
- 4 files changed, 638 insertions(+)
+ video/out/vo_avfoundation.m | 706 ++++++++++++++++++++++++++++++++++++
+ 4 files changed, 719 insertions(+)
  create mode 100644 video/out/vo_avfoundation.m
 
 diff --git a/meson.build b/meson.build
@@ -66,10 +66,10 @@ index 7b5df4b886..3b8bbd0b39 100644
  #endif
 diff --git a/video/out/vo_avfoundation.m b/video/out/vo_avfoundation.m
 new file mode 100644
-index 0000000000..4df615b1bf
+index 0000000000..8e450461bb
 --- /dev/null
 +++ b/video/out/vo_avfoundation.m
-@@ -0,0 +1,625 @@
+@@ -0,0 +1,706 @@
 +/*
 + * This file is part of mpv.
 + *
@@ -152,7 +152,7 @@ index 0000000000..4df615b1bf
 +    return device_ref;
 +}
 +
-+// Create or recreate the output pixel buffer pool for compositing
++// Create or recreate the output pixel buffer pool for compositing (HDR-compatible)
 +static bool create_output_pool(struct vo *vo, int w, int h)
 +{
 +    struct priv *p = vo->priv;
@@ -173,8 +173,10 @@ index 0000000000..4df615b1bf
 +        (id)kCVPixelBufferPoolMaximumBufferAgeKey: @1.0  // 1 second max age
 +    };
 +    
++    // Use 16-bit half-float RGBA for HDR support
++    // This format can represent values > 1.0 needed for HDR (PQ/HLG)
 +    NSDictionary *bufferAttrs = @{
-+        (id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA),
++        (id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_64RGBAHalf),
 +        (id)kCVPixelBufferWidthKey: @(w),
 +        (id)kCVPixelBufferHeightKey: @(h),
 +        (id)kCVPixelBufferMetalCompatibilityKey: @YES,
@@ -196,8 +198,58 @@ index 0000000000..4df615b1bf
 +    p->output_pool_w = w;
 +    p->output_pool_h = h;
 +    
-+    MP_VERBOSE(vo, "Created output pool: %dx%d\n", w, h);
++    MP_VERBOSE(vo, "Created HDR-compatible output pool: %dx%d (64-bit RGBA Half-Float)\n", w, h);
 +    return true;
++}
++
++// Copy HDR metadata from source to destination pixel buffer
++static void copy_hdr_metadata(CVPixelBufferRef src, CVPixelBufferRef dst)
++{
++    // Copy transfer function (PQ for HDR10/DolbyVision, HLG for HLG)
++    CFTypeRef transferFunc = CVBufferGetAttachment(src, 
++        kCVImageBufferTransferFunctionKey, NULL);
++    if (transferFunc) {
++        CVBufferSetAttachment(dst, kCVImageBufferTransferFunctionKey,
++            transferFunc, kCVAttachmentMode_ShouldPropagate);
++    }
++    
++    // Copy color primaries (BT.2020 for HDR)
++    CFTypeRef colorPrimaries = CVBufferGetAttachment(src,
++        kCVImageBufferColorPrimariesKey, NULL);
++    if (colorPrimaries) {
++        CVBufferSetAttachment(dst, kCVImageBufferColorPrimariesKey,
++            colorPrimaries, kCVAttachmentMode_ShouldPropagate);
++    }
++    
++    // Copy YCbCr matrix
++    CFTypeRef matrix = CVBufferGetAttachment(src,
++        kCVImageBufferYCbCrMatrixKey, NULL);
++    if (matrix) {
++        CVBufferSetAttachment(dst, kCVImageBufferYCbCrMatrixKey,
++            matrix, kCVAttachmentMode_ShouldPropagate);
++    }
++    
++    // Copy mastering display color volume (HDR10 static metadata)
++    CFTypeRef masteringDisplay = CVBufferGetAttachment(src,
++        kCVImageBufferMasteringDisplayColorVolumeKey, NULL);
++    if (masteringDisplay) {
++        CVBufferSetAttachment(dst, kCVImageBufferMasteringDisplayColorVolumeKey,
++            masteringDisplay, kCVAttachmentMode_ShouldPropagate);
++    }
++    
++    // Copy content light level info (MaxCLL, MaxFALL)
++    CFTypeRef contentLight = CVBufferGetAttachment(src,
++        kCVImageBufferContentLightLevelInfoKey, NULL);
++    if (contentLight) {
++        CVBufferSetAttachment(dst, kCVImageBufferContentLightLevelInfoKey,
++            contentLight, kCVAttachmentMode_ShouldPropagate);
++    }
++    
++    // Copy color space
++    CGColorSpaceRef colorSpace = CVImageBufferGetColorSpace(src);
++    if (colorSpace) {
++        CVImageBufferSetColorSpace(dst, colorSpace);
++    }
 +}
 +
 +// Render subtitle bitmap to CGImage (used by both modes)
@@ -256,8 +308,10 @@ index 0000000000..4df615b1bf
 +                CGImageRelease(partImage);
 +            }
 +        } else if (imgs->format == SUBBITMAP_LIBASS) {
++            // Invert decode array: libass uses 255=opaque, but CGImageMask uses 0=paint
++            CGFloat decode[] = {1, 0};
 +            CGImageRef mask = CGImageMaskCreate(
-+                sb->w, sb->h, 8, 8, sb->stride, provider, NULL, false);
++                sb->w, sb->h, 8, 8, sb->stride, provider, decode, false);
 +            
 +            if (mask) {
 +                CGContextSaveGState(context);
@@ -378,7 +432,7 @@ index 0000000000..4df615b1bf
 +    osd_draw(vo->osd, osd_res, pts, 0, formats, draw_osd_cb, vo);
 +}
 +
-+// Composite subtitle onto video frame using Core Image (GPU)
++// Composite subtitle onto video frame using Core Image (GPU) - HDR compatible
 +static CVPixelBufferRef composite_frame(struct vo *vo, CVPixelBufferRef videoBuffer)
 +{
 +    struct priv *p = vo->priv;
@@ -403,10 +457,18 @@ index 0000000000..4df615b1bf
 +        return NULL;
 +    }
 +    
++    // Copy HDR metadata from input to output buffer BEFORE rendering
++    copy_hdr_metadata(videoBuffer, outputBuffer);
++    
 +    // Use autoreleasepool to ensure CIImage objects are released promptly
 +    @autoreleasepool {
-+        // Create CIImages
-+        CIImage *videoImage = [CIImage imageWithCVPixelBuffer:videoBuffer];
++        // Create CIImages - preserve color space from source for HDR
++        NSDictionary *videoOptions = @{
++            kCIImageColorSpace: (__bridge id)(CVImageBufferGetColorSpace(videoBuffer) ?: 
++                CGColorSpaceCreateWithName(kCGColorSpaceSRGB))
++        };
++        CIImage *videoImage = [CIImage imageWithCVPixelBuffer:videoBuffer 
++                                                     options:videoOptions];
 +        CIImage *subtitleImage = [CIImage imageWithCGImage:p->cachedSubtitleImage];
 +        
 +        if (!videoImage || !subtitleImage) {
@@ -428,8 +490,16 @@ index 0000000000..4df615b1bf
 +        // Composite subtitle over video
 +        CIImage *composited = [subtitleImage imageByCompositingOverImage:videoImage];
 +        
-+        // Render to output buffer
-+        [p->ciContext render:composited toCVPixelBuffer:outputBuffer];
++        // Render to output buffer, preserving color space
++        CGColorSpaceRef outputColorSpace = CVImageBufferGetColorSpace(videoBuffer);
++        if (outputColorSpace) {
++            [p->ciContext render:composited 
++                 toCVPixelBuffer:outputBuffer 
++                          bounds:composited.extent
++                      colorSpace:outputColorSpace];
++        } else {
++            [p->ciContext render:composited toCVPixelBuffer:outputBuffer];
++        }
 +    }
 +    
 +    return outputBuffer;
@@ -449,7 +519,7 @@ index 0000000000..4df615b1bf
 +    MP_VERBOSE(vo, "displayLayer: %p, composite_osd: %s\n", 
 +               p->displayLayer, p->composite_osd ? "yes" : "no");
 +
-+    // Setup Metal and Core Image for compositing mode
++    // Setup Metal and Core Image for compositing mode (HDR-compatible)
 +    if (p->composite_osd) {
 +        p->mtlDevice = MTLCreateSystemDefaultDevice();
 +        if (!p->mtlDevice) {
@@ -457,17 +527,28 @@ index 0000000000..4df615b1bf
 +            return -1;
 +        }
 +        
++        // Use extended linear Display P3 color space for HDR compositing
++        // This color space can represent values > 1.0 needed for HDR
++        CGColorSpaceRef hdrColorSpace = CGColorSpaceCreateWithName(
++            kCGColorSpaceExtendedLinearDisplayP3);
++        
 +        p->ciContext = [CIContext contextWithMTLDevice:p->mtlDevice options:@{
-+            kCIContextWorkingColorSpace: [NSNull null],
-+            kCIContextHighQualityDownsample: @NO
++            kCIContextWorkingColorSpace: (__bridge id)(hdrColorSpace ?: 
++                CGColorSpaceCreateWithName(kCGColorSpaceExtendedSRGB)),
++            kCIContextHighQualityDownsample: @NO,
++            kCIContextUseSoftwareRenderer: @NO
 +        }];
++        
++        if (hdrColorSpace) {
++            CGColorSpaceRelease(hdrColorSpace);
++        }
 +        
 +        if (!p->ciContext) {
 +            MP_ERR(vo, "Failed to create CIContext\n");
 +            return -1;
 +        }
 +        
-+        MP_VERBOSE(vo, "Compositing mode enabled with Metal\n");
++        MP_VERBOSE(vo, "HDR-compatible compositing mode enabled with Metal\n");
 +    }
 +
 +    // Create OSD layer only if not in composite mode
@@ -695,4 +776,3 @@ index 0000000000..4df615b1bf
 +    .options = options,
 +    .options_prefix = "avfoundation",
 +};
-\ No newline at end of file
