@@ -92,7 +92,7 @@ class ArgumentOptions {
 
 class BaseBuild {
     static let defaultPath = "/Library/Frameworks/Python.framework/Versions/Current/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-    static var platforms = PlatformType.allCases
+    static var platforms = PlatformType.allCases.filter { $0 != .xros && $0 != .xrsimulator }
     static var options = ArgumentOptions()
     static let splitPlatformGroups = [
         PlatformType.macos.rawValue: [PlatformType.macos, PlatformType.maccatalyst],
