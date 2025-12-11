@@ -110,6 +110,7 @@ struct AVFoundationContentView: View {
                         videoButton("DV P5", url: "https://github.com/mpvkit/video-test/raw/master/resources/DolbyVision_P5.mp4")
                         videoButton("DV P8", url: "https://github.com/mpvkit/video-test/raw/master/resources/DolbyVision_P8.mp4")
                         videoButton("4K", url: "https://jellyfin.alexprojects.kozow.com/Videos/4c01e7e8097e718effb7ee8cfe49d9f1/stream?static=true&container=mp4&mediaSourceId=4c01e7e8097e718effb7ee8cfe49d9f1&subtitleStreamIndex=2&audioStreamIndex=1&deviceId=634f30a2-7920-4181-9ab4-dbf5edc07642&api_key=8b75ef3681de4ceca00680a3b0312e57&startTimeTicks=0&maxStreamingBitrate=&userId=908309aaf78c4a87b3d27704c1a1b306")
+                        videoButton("MPEG-2 TS", url: "https://livesim.dashif.org/livesim/chunkdur_1/ato_7/testpic4_8s/Manifest.mpd")
                     }
                     .padding(.horizontal)
                 }

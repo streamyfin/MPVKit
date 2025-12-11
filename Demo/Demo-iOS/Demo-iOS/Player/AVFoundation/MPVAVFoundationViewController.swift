@@ -106,6 +106,8 @@ final class MPVAVFoundationViewController: UIViewController {
         // Subtitle and audio settings
         checkError(mpv_set_option_string(mpv, "subs-match-os-language", "yes"))
         checkError(mpv_set_option_string(mpv, "subs-fallback", "yes"))
+
+        checkError(mpv_set_option_string(mpv, "hwdec-software-fallback", "no"))
         
         // Initialize mpv
         checkError(mpv_initialize(mpv))
