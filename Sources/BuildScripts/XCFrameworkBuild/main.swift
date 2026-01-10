@@ -416,6 +416,7 @@ private class BuildMPV: BaseBuild {
             array.append("-Dcocoa=enabled")
             array.append("-Dcoreaudio=enabled")
             array.append("-Davfoundation=enabled")
+            array.append("-Dvo-avfoundation=enabled")
             array.append("-Dgl-cocoa=enabled")
             array.append("-Dvideotoolbox-gl=enabled")
             array.append("-Dvideotoolbox-pl=enabled")
@@ -426,6 +427,7 @@ private class BuildMPV: BaseBuild {
             array.append("-Dswift-build=disabled")
             array.append("-Daudiounit=enabled")
             array.append("-Davfoundation=disabled")
+            array.append("-Dvo-avfoundation=enabled")
             array.append("-Dlua=disabled")
             if platform == .maccatalyst {
                 array.append("-Dcocoa=disabled")
@@ -609,6 +611,11 @@ private class BuildFFMPEG: BaseBuild {
             arguments.append("--enable-filter=testsrc")
         } else {
             arguments.append("--disable-programs")
+        }
+        
+        // Enable AVFoundation for camera/microphone capture on Apple platforms
+        if platform == .ios || platform == .isimulator || platform == .macos || platform == .tvos || platform == .tvsimulator || platform == .maccatalyst {
+            arguments.append("--enable-indev=avfoundation")
         }
         //        if platform == .isimulator || platform == .tvsimulator {
         //            arguments.append("--assert-level=1")
