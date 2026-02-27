@@ -8,10 +8,10 @@ Pod::Spec.new do |s|
     composite OSD for subtitles, and HDR/Dolby Vision support.
   DESC
 
-  s.homepage         = 'https://github.com/Alexk2309/MPVKit'
+  s.homepage         = 'https://github.com/streamyfin/MPVKit'
   s.license          = { :type => 'GPL-3.0', :text => 'GPL-3.0. See https://www.gnu.org/licenses/gpl-3.0.html' }
-  s.author           = { 'Alexk2309' => 'https://github.com/Alexk2309' }
-  s.source           = { :http => 'https://github.com/Alexk2309/MPVKit/releases/download/0.40.0-av/MPVKit-GPL-Frameworks.zip' }
+  s.author           = { 'streamyfin' => 'https://github.com/streamyfin' }
+  s.source           = { :http => 'https://github.com/streamyfin/MPVKit/releases/download/0.40.0-av/MPVKit-GPL-Frameworks.zip' }
 
   s.ios.deployment_target = '13.0'
   s.tvos.deployment_target = '13.0'
