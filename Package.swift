@@ -39,7 +39,7 @@ let package = Package(
         .binaryTarget(
             name: "MPVKit",
             url: "https://github.com/streamyfin/MPVKit/releases/download/0.40.0-av/MPVKit-GPL-Frameworks.zip",
-            checksum: "b32c76c082b3e3f3b90278b0ad249f1ae2fc0cb5b413aa16440bf5583c3fcd2a"
+            checksum: "5c5e7f48fb64674ab5880fbbd39a16e0fda527b0a3bdc4614d1f79e9eacf48a2"
         ),
     ]
 )
