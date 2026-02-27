@@ -1,1 +1,2 @@
-@_exported import Libmpv
+@_exported import MPVKit
+
