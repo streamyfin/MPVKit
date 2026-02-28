@@ -1,6 +1,6 @@
 import Foundation
 import UIKit
-import Libmpv
+import MPVKit
 
 // warning: metal API validation has been disabled to ignore crash when playing HDR videos.
 // Edit Scheme -> Run -> Diagnostics -> Metal API Validation -> Turn it off

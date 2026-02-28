@@ -1,14 +1,14 @@
-From 10a59044107e0b7f11d07ee14fef718486a5d9b8 Mon Sep 17 00:00:00 2001
+From 362b6eabb164c6fd9e2f9fb771754c615a39cbae Mon Sep 17 00:00:00 2001
 From: Alex Kim <alexkim@Alexs-MacBook-Pro.local>
 Date: Sat, 23 Aug 2025 20:11:28 +1000
 Subject: [PATCH] AVfoundation video output
 
 ---
- meson.build                 |   8 +
- meson.options               |   1 +
- video/out/vo.c              |   4 +
- video/out/vo_avfoundation.m | 901 ++++++++++++++++++++++++++++++++++++
- 4 files changed, 914 insertions(+)
+ meson.build                 |    8 +
+ meson.options               |    1 +
+ video/out/vo.c              |    4 +
+ video/out/vo_avfoundation.m | 1003 +++++++++++++++++++++++++++++++++++
+ 4 files changed, 1016 insertions(+)
  create mode 100644 video/out/vo_avfoundation.m
 
 diff --git a/meson.build b/meson.build
@@ -66,10 +66,10 @@ index 7b5df4b886..3b8bbd0b39 100644
  #endif
 diff --git a/video/out/vo_avfoundation.m b/video/out/vo_avfoundation.m
 new file mode 100644
-index 0000000000..8dfa0a03f2
+index 0000000000..1b3e13aece
 --- /dev/null
 +++ b/video/out/vo_avfoundation.m
-@@ -0,0 +1,901 @@
+@@ -0,0 +1,1003 @@
 +/*
 + * This file is part of mpv.
 + *
@@ -140,6 +140,12 @@ index 0000000000..8dfa0a03f2
 +    
 +    // Frame counter for periodic maintenance
 +    int frame_count;
++    
++    // Track if OSD callback was invoked this frame
++    bool osd_callback_invoked;
++    
++    // Display resolution for scaling subtitles (0 = no upscaling)
++    int display_height;
 +};
 +
 +// Helper to sync OSD layer frame with display layer bounds
@@ -217,12 +223,35 @@ index 0000000000..8dfa0a03f2
 +    return true;
 +}
 +
-+// Create output pool for HDR compositing (16-bit half-float RGBA)
-+static bool create_output_pool(struct vo *vo, int w, int h)
++
++// Create output pool matching the source format to preserve quality
++// Strategy: Use BGRA for 8-bit SDR (matches subtitle format, avoids half-float precision loss)
++//           Use RGBA half-float for 10-bit HDR (necessary for HDR precision)
++static bool create_output_pool(struct vo *vo, int w, int h, OSType format)
 +{
 +    struct priv *p = vo->priv;
++    
++    OSType outputFormat;
++    
++    // For 10-bit HDR content (P010), use RGBA half-float to preserve HDR precision
++    if (format == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange ||
++        format == kCVPixelFormatType_420YpCbCr10BiPlanarFullRange) {
++        outputFormat = kCVPixelFormatType_64RGBAHalf;
++    }
++    // For 8-bit SDR content, use BGRA (matches subtitle format, avoids half-float precision issues)
++    // This minimizes format conversions and preserves quality better than RGBA half-float
++    else if (format == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange ||
++             format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange ||
++             format == kCVPixelFormatType_420YpCbCr8Planar) {
++        outputFormat = kCVPixelFormatType_32BGRA;
++    }
++    // Default to RGBA half-float for unknown formats (HDR-safe fallback)
++    else {
++        outputFormat = kCVPixelFormatType_64RGBAHalf;
++    }
++    
 +    return create_pixel_buffer_pool(vo, &p->outputPool, &p->output_pool_w, 
-+        &p->output_pool_h, NULL, w, h, kCVPixelFormatType_64RGBAHalf, "HDR output");
++        &p->output_pool_h, NULL, w, h, outputFormat, "composite output");
 +}
 +
 +// Copy HDR metadata from source to destination pixel buffer
@@ -444,10 +473,14 @@ index 0000000000..8dfa0a03f2
 +    struct vo *vo = ctx;
 +    struct priv *p = vo->priv;
 +    
++    // Mark that callback was invoked this frame
++    p->osd_callback_invoked = true;
++    
++    // Clear subtitles when there are none
 +    if (!imgs || imgs->num_parts == 0) {
-+        // Clear subtitles when there are none
 +        if (p->has_subtitle) {
 +            p->has_subtitle = false;
++            p->osd_change_id = 0;  // Reset change_id so next subtitle renders
 +            if (p->composite_osd) {
 +                if (p->cachedSubtitleImage) {
 +                    CGImageRelease(p->cachedSubtitleImage);
@@ -465,8 +498,9 @@ index 0000000000..8dfa0a03f2
 +        return;
 +    }
 +    
-+    // Skip redraw if content hasn't changed
-+    if (imgs->change_id != 0 && imgs->change_id == p->osd_change_id)
++    // Skip redraw if content hasn't changed AND we already have a subtitle cached
++    // This prevents unnecessary re-rendering but ensures we don't skip first render
++    if (imgs->change_id != 0 && imgs->change_id == p->osd_change_id && p->has_subtitle)
 +        return;
 +    
 +    p->osd_change_id = imgs->change_id;
@@ -511,12 +545,21 @@ index 0000000000..8dfa0a03f2
 +    if (w <= 0 || h <= 0)
 +        return;
 +    
-+    p->osd_w = w;
-+    p->osd_h = h;
++    // In composite mode, render subtitles at display resolution for crisp text
++    int render_w = w;
++    int render_h = h;
++    if (p->composite_osd && p->display_height > 0 && h < p->display_height) {
++        float scale = (float)p->display_height / (float)h;
++        render_w = (int)(w * scale);
++        render_h = p->display_height;
++    }
++    
++    p->osd_w = render_w;
++    p->osd_h = render_h;
 +    
 +    struct mp_osd_res osd_res = {
-+        .w = w,
-+        .h = h,
++        .w = render_w,
++        .h = render_h,
 +        .display_par = 1.0,
 +    };
 +    
@@ -525,7 +568,30 @@ index 0000000000..8dfa0a03f2
 +        [SUBBITMAP_LIBASS] = true,
 +    };
 +    
++    // Reset flag before calling osd_draw
++    p->osd_callback_invoked = false;
++    
 +    osd_draw(vo->osd, osd_res, pts, 0, formats, draw_osd_cb, vo);
++    
++    // If callback wasn't invoked, there are no subtitles for this PTS
++    // Clear any cached subtitle state
++    if (!p->osd_callback_invoked && p->has_subtitle) {
++        p->has_subtitle = false;
++        p->osd_change_id = 0;
++        if (p->composite_osd) {
++            if (p->cachedSubtitleImage) {
++                CGImageRelease(p->cachedSubtitleImage);
++                p->cachedSubtitleImage = NULL;
++            }
++        } else if (p->osdLayer) {
++            dispatch_async(dispatch_get_main_queue(), ^{
++                [CATransaction begin];
++                [CATransaction setDisableActions:YES];
++                p->osdLayer.contents = nil;
++                [CATransaction commit];
++            });
++        }
++    }
 +}
 +
 +// Composite subtitle onto video frame using Core Image (GPU) - HDR compatible
@@ -536,11 +602,23 @@ index 0000000000..8dfa0a03f2
 +    if (!p->cachedSubtitleImage || !p->has_subtitle)
 +        return NULL;
 +    
-+    size_t w = CVPixelBufferGetWidth(videoBuffer);
-+    size_t h = CVPixelBufferGetHeight(videoBuffer);
++    size_t videoW = CVPixelBufferGetWidth(videoBuffer);
++    size_t videoH = CVPixelBufferGetHeight(videoBuffer);
 +    
-+    // Ensure output pool matches dimensions
-+    if (!create_output_pool(vo, (int)w, (int)h))
++    // Upscale to display resolution for crisp subtitles
++    size_t outW = videoW;
++    size_t outH = videoH;
++    if (p->display_height > 0 && videoH < (size_t)p->display_height) {
++        CGFloat scale = (CGFloat)p->display_height / (CGFloat)videoH;
++        outW = (size_t)(videoW * scale);
++        outH = (size_t)p->display_height;
++    }
++    
++    // Detect original pixel format to preserve quality
++    OSType sourceFormat = CVPixelBufferGetPixelFormatType(videoBuffer);
++    
++    // Ensure output pool matches dimensions and format
++    if (!create_output_pool(vo, (int)outW, (int)outH, sourceFormat))
 +        return NULL;
 +    
 +    // Get output buffer from pool
@@ -578,20 +656,33 @@ index 0000000000..8dfa0a03f2
 +        
 +        if (fallbackColorSpace)
 +            CGColorSpaceRelease(fallbackColorSpace);
-+        CIImage *subtitleImage = [CIImage imageWithCGImage:p->cachedSubtitleImage];
 +        
-+        if (!videoImage || !subtitleImage) {
++        if (!videoImage) {
 +            CVPixelBufferRelease(outputBuffer);
 +            return NULL;
 +        }
 +        
-+        // Scale subtitle to match video dimensions if needed
-+        CGSize videoSize = videoImage.extent.size;
++        // Scale video to output dimensions if upscaling
++        if (outW != videoW || outH != videoH) {
++            CGFloat scaleX = (CGFloat)outW / (CGFloat)videoW;
++            CGFloat scaleY = (CGFloat)outH / (CGFloat)videoH;
++            videoImage = [videoImage imageByApplyingTransform:
++                CGAffineTransformMakeScale(scaleX, scaleY)];
++        }
++        
++        CIImage *subtitleImage = [CIImage imageWithCGImage:p->cachedSubtitleImage];
++        
++        if (!subtitleImage) {
++            CVPixelBufferRelease(outputBuffer);
++            return NULL;
++        }
++        
++        // Scale subtitle to match output dimensions
 +        CGSize subSize = subtitleImage.extent.size;
 +        
-+        if (subSize.width != videoSize.width || subSize.height != videoSize.height) {
-+            CGFloat scaleX = videoSize.width / subSize.width;
-+            CGFloat scaleY = videoSize.height / subSize.height;
++        if (subSize.width != (CGFloat)outW || subSize.height != (CGFloat)outH) {
++            CGFloat scaleX = (CGFloat)outW / subSize.width;
++            CGFloat scaleY = (CGFloat)outH / subSize.height;
 +            subtitleImage = [subtitleImage imageByApplyingTransform:
 +                CGAffineTransformMakeScale(scaleX, scaleY)];
 +        }
@@ -667,6 +758,17 @@ index 0000000000..8dfa0a03f2
 +        }
 +        
 +        MP_VERBOSE(vo, "HDR-compatible compositing mode enabled with Metal\n");
++        
++        // Get display resolution for subtitle upscaling
++#if TARGET_OS_IPHONE
++        CGRect screenBounds = [UIScreen mainScreen].nativeBounds;
++        p->display_height = (int)screenBounds.size.height;
++#else
++        NSScreen *screen = [NSScreen mainScreen];
++        CGFloat scaleFactor = screen.backingScaleFactor;
++        p->display_height = (int)(screen.frame.size.height * scaleFactor);
++#endif
++        MP_VERBOSE(vo, "Display height for subtitle scaling: %d\n", p->display_height);
 +    }
 +
 +    // Create OSD layer only if not in composite mode
@@ -973,4 +1075,3 @@ index 0000000000..8dfa0a03f2
 +};
 -- 
 2.50.1 (Apple Git-155)
-

@@ -1,6 +1,6 @@
 import Foundation
 import GLKit
-import Libmpv
+import MPVKit
 
 /**
  Warning: OpenGL rendering can not play 10bit videos correctly on iOS/tvOS.

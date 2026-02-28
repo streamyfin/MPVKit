@@ -1,43 +1,85 @@
-# MPVKit
+# MPVKit (AVFoundation Fork)
 
 [![mpv](https://img.shields.io/badge/mpv-v0.40.0-blue.svg)](https://github.com/mpv-player/mpv)
 [![ffmpeg](https://img.shields.io/badge/ffmpeg-n8.0-blue.svg)](https://github.com/FFmpeg/FFmpeg)
-[![license](https://img.shields.io/github/license/mpvkit/MPVKit)](https://github.com/mpvkit/MPVKit/main/LICENSE)
+[![license](https://img.shields.io/badge/license-GPL--3.0-red.svg)](LICENSE)
 
-> MPVKit is only suitable for learning `libmpv` and will not be maintained too frequently.
+This is a fork of [MPVKit](https://github.com/mpvkit/MPVKit) with **AVFoundation video output (`vo_avfoundation`)** support for iOS.
 
-`MPVKit` is a collection of tools to use `mpv` in `iOS`, `macOS`, `tvOS` applications.
+## Acknowledgments
 
-It includes scripts to build `mpv` native libraries.
+Special thanks to the [MPVKit](https://github.com/mpvkit/MPVKit) team for creating and maintaining the original project that makes it possible to use `libmpv` on Apple platforms. This fork builds upon their excellent work.
 
-Forked from [kingslay/FFmpegKit](https://github.com/kingslay/FFmpegKit)
+Original project forked from [kingslay/FFmpegKit](https://github.com/kingslay/FFmpegKit).
 
-## About Metal support
+## What's Different in This Fork?
 
-Metal support only a patch version ([#7857](https://github.com/mpv-player/mpv/pull/7857)) and does not officially support it yet. Encountering any issues is not strange. 
+This fork includes the **`vo_avfoundation`** video output driver, which:
+
+- Renders video directly to `AVSampleBufferDisplayLayer`
+- Enables **Picture-in-Picture (PiP)** support on iOS
+- Uses hardware-accelerated VideoToolbox decoding
+- Supports composite OSD for subtitle rendering in PiP
+
+## ⭐ Support This Project
+
+I'm doing this out of the goodness of my heart! If you find this project useful, please consider:
+
+- ⭐ **Starring** this repository
+- 👤 **Following** me on GitHub ([@Alexk2309](https://github.com/Alexk2309))
+
+Your support helps me continue maintaining and improving this project. Thank you! 🙏
+
+## License
+
+**This fork is licensed under GPL v3.0.**
+
+This build uses the GPL-licensed components including samba protocol support and other GPL libraries. By using this fork, you agree to the terms of the GPL v3.0 license.
+
+See [LICENSE](LICENSE) for full details.
+
+---
 
 ## Installation
 
 ### Swift Package Manager
 
+Add to your `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/Alexk2309/MPVKit.git", from: "0.40.0-av")
+]
 ```
-https://github.com/mpvkit/MPVKit.git
+
+Or use Xcode: File → Add Package Dependencies → Enter `https://github.com/Alexk2309/MPVKit.git` → Select version `0.40.0-av` or later.
+
+### CocoaPods
+
+Add to your `Podfile`:
+
+```ruby
+pod 'MPVKit-GPL', :git => 'https://github.com/Alexk2309/MPVKit.git', :tag => '0.40.0-av'
 ```
 
-### Choose which version
+Then run:
 
-| Version | License | Note |
-|---|---|---|
-| MPVKit | LGPL | [FFmpeg details](https://github.com/FFmpeg/FFmpeg/blob/master/LICENSE.md) , [mpv details](https://github.com/mpv-player/mpv/blob/master/Copyright) |
-| MPVKit-GPL | GPL | Support samba protocol, same as old MPVKit version |
+```bash
+pod install
+```
 
+### Usage
 
-## How to build
+```swift
+import Libmpv
+```
+
+## How to Build
 
 ```bash
 make build
-# specified platforms (ios,macos,tvos,tvsimulator,isimulator,maccatalyst,xros,xrsimulator)
-make build platform=ios,macos
+# specified platforms (ios,tvos,tvsimulator,isimulator)
+make build platform=ios,tvos
 # build GPL version
 make build enable-gpl
 # clean all build temp files and cache
@@ -46,7 +88,7 @@ make clean
 make help
 ```
 
-## Make demo app using the local build version
+## Make Demo App Using the Local Build Version
 
 If you want the demo app to use the local build version, you need to modify `Package.swift` to reference the local build xcframework file.
 
@@ -90,7 +132,7 @@ If you want the demo app to use the local build version, you need to modify `Pac
 
 </details>
 
-## Run default mpv player
+## Run Default mpv Player
 
 ```bash
 ./mpv.sh --input-commands='script-message display-stats-toggle' [url]
@@ -111,15 +153,3 @@ If you want the demo app to use the local build version, you need to modify `Pac
 * [libsmbclient-build](https://github.com/mpvkit/libsmbclient-build)
 * [gnutls-build](https://github.com/mpvkit/gnutls-build)
 * [openssl-build](https://github.com/mpvkit/openssl-build)
-
-## Donation
-
-If you appreciate my current work, you can buy me a cup of coffee ☕️.
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/C0C410P7UN)
-
-## License
-
-`MPVKit` source alone is licensed under the LGPL v3.0.
-
-`MPVKit` bundles (`frameworks`, `xcframeworks`), which include both `libmpv` and `FFmpeg` libraries, are also licensed under the LGPL v3.0. However, if the source code is built using the optional `enable-gpl` flag or prebuilt binaries with `-GPL` postfix are used, then `MPVKit` bundles become subject to the GPL v3.0.

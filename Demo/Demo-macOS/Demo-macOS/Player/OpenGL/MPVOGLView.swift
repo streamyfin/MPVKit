@@ -1,7 +1,7 @@
 import AppKit
 import OpenGL.GL
 import OpenGL.GL3
-import Libmpv
+import MPVKit
 
 final class MPVOGLView: NSOpenGLView {
     var mpv: OpaquePointer!

@@ -92,7 +92,7 @@ class ArgumentOptions {
 
 class BaseBuild {
     static let defaultPath = "/Library/Frameworks/Python.framework/Versions/Current/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-    static var platforms = PlatformType.allCases
+    static var platforms = PlatformType.allCases.filter { $0 != .xros && $0 != .xrsimulator }
     static var options = ArgumentOptions()
     static let splitPlatformGroups = [
         PlatformType.macos.rawValue: [PlatformType.macos, PlatformType.maccatalyst],
@@ -188,8 +188,10 @@ class BaseBuild {
             try Utility.launch(path: waf, arguments: ["install"] + wafInstallArg(), currentDirectoryURL: directoryURL, environment: environ)
         } else {
             try configure(buildURL: buildURL, environ: environ, platform: platform, arch: arch)
-            try Utility.launch(path: "/usr/bin/make", arguments: ["-j8"], currentDirectoryURL: buildURL, environment: environ)
-            try Utility.launch(path: "/usr/bin/make", arguments: ["-j8", "install"], currentDirectoryURL: buildURL, environment: environ)
+            // Use all available CPU cores for maximum build speed
+            let cpuCount = ProcessInfo.processInfo.activeProcessorCount
+            try Utility.launch(path: "/usr/bin/make", arguments: ["-j\(cpuCount)"], currentDirectoryURL: buildURL, environment: environ)
+            try Utility.launch(path: "/usr/bin/make", arguments: ["-j\(cpuCount)", "install"], currentDirectoryURL: buildURL, environment: environ)
         }
     }
 

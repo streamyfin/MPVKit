@@ -37,9 +37,34 @@ do {
     try BuildUchardet().buildALL()
     try BuildLuaJIT().buildALL()
     try BuildMPV().buildALL()
+    
+    // Create combined framework (bundles everything into one MPVKit.xcframework)
+    try BuildCombinedFramework().build()
 } catch {
     print(error.localizedDescription)
     exit(1)
+}
+
+/// Builds the combined MPVKit.xcframework by running the shell script
+private class BuildCombinedFramework {
+    func build() throws {
+        print("")
+        print("==============================================")
+        print("  Creating Combined MPVKit.xcframework")
+        print("==============================================")
+        
+        // URL.currentDirectory is dist/, so go up one level to project root
+        let projectRoot = URL.currentDirectory.deletingLastPathComponent()
+        let scriptPath = projectRoot.appendingPathComponent("create-combined-framework.sh")
+        
+        if FileManager.default.fileExists(atPath: scriptPath.path) {
+            try Utility.launch(path: "/bin/bash", arguments: [scriptPath.path], currentDirectoryURL: projectRoot)
+            print("✓ Combined framework created at dist/MPVKit-combined/")
+        } else {
+            print("⚠ create-combined-framework.sh not found at \(scriptPath.path)")
+            print("  Skipping combined framework creation")
+        }
+    }
 }
 
 
@@ -416,6 +441,7 @@ private class BuildMPV: BaseBuild {
             array.append("-Dcocoa=enabled")
             array.append("-Dcoreaudio=enabled")
             array.append("-Davfoundation=enabled")
+            array.append("-Dvo-avfoundation=enabled")
             array.append("-Dgl-cocoa=enabled")
             array.append("-Dvideotoolbox-gl=enabled")
             array.append("-Dvideotoolbox-pl=enabled")
@@ -426,6 +452,7 @@ private class BuildMPV: BaseBuild {
             array.append("-Dswift-build=disabled")
             array.append("-Daudiounit=enabled")
             array.append("-Davfoundation=disabled")
+            array.append("-Dvo-avfoundation=enabled")
             array.append("-Dlua=disabled")
             if platform == .maccatalyst {
                 array.append("-Dcocoa=disabled")
@@ -609,6 +636,11 @@ private class BuildFFMPEG: BaseBuild {
             arguments.append("--enable-filter=testsrc")
         } else {
             arguments.append("--disable-programs")
+        }
+        
+        // Enable AVFoundation for camera/microphone capture on Apple platforms
+        if platform == .ios || platform == .isimulator || platform == .macos || platform == .tvos || platform == .tvsimulator || platform == .maccatalyst {
+            arguments.append("--enable-indev=avfoundation")
         }
         //        if platform == .isimulator || platform == .tvsimulator {
         //            arguments.append("--assert-level=1")
