@@ -1176,6 +1176,10 @@ enum PlatformType: String, CaseIterable {
         if self == .tvos || self == .tvsimulator {
             cflags.append("-DHAVE_FORK=0")
         }
+        // Same UIKit search path as ldFlags: vo_avfoundation.m imports UIKit/UIKit.h
+        if self == .maccatalyst {
+            cflags += ["-iframework", "\(isysroot)/System/iOSSupport/System/Library/Frameworks"]
+        }
         return cflags
     }
 
