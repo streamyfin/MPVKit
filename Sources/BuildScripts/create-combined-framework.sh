@@ -30,6 +30,18 @@ get_arches() {
         isimulator) echo "arm64 x86_64" ;;
         tvos) echo "arm64 arm64e" ;;
         tvsimulator) echo "arm64 x86_64" ;;
+        maccatalyst) echo "arm64 x86_64" ;;
+    esac
+}
+
+# XCFramework slice for a platform: "<LibraryIdentifier> <SupportedPlatform> [<Variant>]"
+get_xcf_slice() {
+    case "$1" in
+        ios) echo "ios-arm64 ios" ;;
+        isimulator) echo "ios-arm64_x86_64-simulator ios simulator" ;;
+        tvos) echo "tvos-arm64_arm64e tvos" ;;
+        tvsimulator) echo "tvos-arm64_x86_64-simulator tvos simulator" ;;
+        maccatalyst) echo "ios-arm64_x86_64-maccatalyst ios maccatalyst" ;;
     esac
 }
 
@@ -74,7 +86,7 @@ echo ""
 
 FRAMEWORK_ARGS=()
 
-for platform in ios isimulator tvos tvsimulator; do
+for platform in ios isimulator tvos tvsimulator maccatalyst; do
     arches=$(get_arches "$platform")
     
     echo "=== Platform: $platform ($arches) ==="
@@ -310,58 +322,40 @@ XCF_PATH="$XCF_DIR/MPVKit.xcframework"
 rm -rf "$XCF_PATH"
 mkdir -p "$XCF_PATH"
 
-# Create Info.plist for xcframework
-cat > "$XCF_PATH/Info.plist" << 'PLIST'
+# Copy each built platform into the xcframework and describe it in Info.plist
+LIBRARIES=""
+for platform in ios isimulator tvos tvsimulator maccatalyst; do
+    [ -d "$WORK_DIR/$platform/MPVKit.framework" ] || continue
+    read -r identifier supported variant <<< "$(get_xcf_slice "$platform")"
+    mkdir -p "$XCF_PATH/$identifier"
+    cp -R "$WORK_DIR/$platform/MPVKit.framework" "$XCF_PATH/$identifier/MPVKit.framework"
+
+    ARCH_XML=""
+    for arch in $(get_arches "$platform"); do ARCH_XML+="<string>$arch</string>"; done
+    VARIANT_XML=""
+    [ -n "$variant" ] && VARIANT_XML="
+            <key>SupportedPlatformVariant</key>
+            <string>$variant</string>"
+    LIBRARIES+="
+        <dict>
+            <key>LibraryIdentifier</key>
+            <string>$identifier</string>
+            <key>LibraryPath</key>
+            <string>MPVKit.framework</string>
+            <key>SupportedArchitectures</key>
+            <array>$ARCH_XML</array>
+            <key>SupportedPlatform</key>
+            <string>$supported</string>$VARIANT_XML
+        </dict>"
+done
+
+cat > "$XCF_PATH/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>AvailableLibraries</key>
-    <array>
-        <dict>
-            <key>LibraryIdentifier</key>
-            <string>ios-arm64</string>
-            <key>LibraryPath</key>
-            <string>MPVKit.framework</string>
-            <key>SupportedArchitectures</key>
-            <array><string>arm64</string></array>
-            <key>SupportedPlatform</key>
-            <string>ios</string>
-        </dict>
-        <dict>
-            <key>LibraryIdentifier</key>
-            <string>ios-arm64_x86_64-simulator</string>
-            <key>LibraryPath</key>
-            <string>MPVKit.framework</string>
-            <key>SupportedArchitectures</key>
-            <array><string>arm64</string><string>x86_64</string></array>
-            <key>SupportedPlatform</key>
-            <string>ios</string>
-            <key>SupportedPlatformVariant</key>
-            <string>simulator</string>
-        </dict>
-        <dict>
-            <key>LibraryIdentifier</key>
-            <string>tvos-arm64_arm64e</string>
-            <key>LibraryPath</key>
-            <string>MPVKit.framework</string>
-            <key>SupportedArchitectures</key>
-            <array><string>arm64</string><string>arm64e</string></array>
-            <key>SupportedPlatform</key>
-            <string>tvos</string>
-        </dict>
-        <dict>
-            <key>LibraryIdentifier</key>
-            <string>tvos-arm64_x86_64-simulator</string>
-            <key>LibraryPath</key>
-            <string>MPVKit.framework</string>
-            <key>SupportedArchitectures</key>
-            <array><string>arm64</string><string>x86_64</string></array>
-            <key>SupportedPlatform</key>
-            <string>tvos</string>
-            <key>SupportedPlatformVariant</key>
-            <string>simulator</string>
-        </dict>
+    <array>$LIBRARIES
     </array>
     <key>CFBundlePackageType</key>
     <string>XFWK</string>
@@ -370,17 +364,6 @@ cat > "$XCF_PATH/Info.plist" << 'PLIST'
 </dict>
 </plist>
 PLIST
-
-# Copy frameworks to xcframework structure
-mkdir -p "$XCF_PATH/ios-arm64"
-mkdir -p "$XCF_PATH/ios-arm64_x86_64-simulator"
-mkdir -p "$XCF_PATH/tvos-arm64_arm64e"
-mkdir -p "$XCF_PATH/tvos-arm64_x86_64-simulator"
-
-cp -R "$WORK_DIR/ios/MPVKit.framework" "$XCF_PATH/ios-arm64/MPVKit.framework"
-cp -R "$WORK_DIR/isimulator/MPVKit.framework" "$XCF_PATH/ios-arm64_x86_64-simulator/MPVKit.framework"
-cp -R "$WORK_DIR/tvos/MPVKit.framework" "$XCF_PATH/tvos-arm64_arm64e/MPVKit.framework"
-cp -R "$WORK_DIR/tvsimulator/MPVKit.framework" "$XCF_PATH/tvos-arm64_x86_64-simulator/MPVKit.framework"
 
 echo "  ✓ Created MPVKit.xcframework"
 

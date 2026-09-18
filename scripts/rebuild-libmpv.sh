@@ -11,8 +11,8 @@ OUTPUT_NAME="Libmpv${GPL_SUFFIX}"
 
 echo "🔨 Rebuilding libmpv for all platforms (GPL build)..."
 
-# Define all platforms (iOS and tvOS only, no macOS)
-PLATFORMS="ios isimulator tvos tvsimulator"
+# Define all platforms (iOS, tvOS and Mac Catalyst)
+PLATFORMS="ios isimulator tvos tvsimulator maccatalyst"
 
 # Get architectures for each platform (must match original build)
 get_archs() {
@@ -20,7 +20,7 @@ get_archs() {
         ios) echo "arm64" ;;
         isimulator) echo "arm64 x86_64" ;;
         tvos) echo "arm64 arm64e" ;;
-        tvsimulator) echo "arm64 x86_64" ;;
+        tvsimulator|maccatalyst) echo "arm64 x86_64" ;;
         *) echo "arm64" ;;
     esac
 }
