@@ -240,6 +240,7 @@ for platform in ios isimulator tvos tvsimulator; do
 #include "mpv/render.h"
 #include "mpv/render_gl.h"
 #include "mpv/stream_cb.h"
+#include "mpv/spatial_audio.h"
 
 #endif /* MPVKit_h */
 UMBRELLA

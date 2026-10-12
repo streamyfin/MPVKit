@@ -709,6 +709,8 @@ private class BuildFFMPEG: BaseBuild {
         "--enable-muxer=flac", "--enable-muxer=dash", "--enable-muxer=hevc",
         "--enable-muxer=m4v", "--enable-muxer=matroska", "--enable-muxer=mov", "--enable-muxer=mp4",
         "--enable-muxer=mpegts", "--enable-muxer=webm*",
+        // mpv's passthrough (--audio-spdif) packs audio into IEC 61937 with it.
+        "--enable-muxer=spdif",
         // ./configure --list-encoders
         "--disable-encoders",
         "--enable-encoder=aac", "--enable-encoder=alac", "--enable-encoder=flac", "--enable-encoder=pcm*",
