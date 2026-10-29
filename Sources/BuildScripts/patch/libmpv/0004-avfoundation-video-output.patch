@@ -73,7 +73,7 @@ new file mode 100644
 index 0000000000..8155d7a0e8
 --- /dev/null
 +++ b/video/out/vo_avfoundation.m
-@@ -0,0 +1,1281 @@
+@@ -0,0 +1,1311 @@
 +/*
 + * This file is part of mpv.
 + *
@@ -272,6 +272,34 @@ index 0000000000..8155d7a0e8
 +        if (value) {
 +            CVBufferSetAttachment(dst, keys[i], value, kCVAttachmentMode_ShouldPropagate);
 +        }
++    }
++}
++
++// Tell the display layer the shape of one pixel. Anamorphic sources (a 720x480
++// DVD rip flagged 16:9, for one) store non-square pixels. AVSampleBufferDisplayLayer
++// reads this attachment and stretches the frame to its display aspect, which keeps
++// fit, fill and picture in picture right. Without it the layer draws the stored size.
++static void set_pixel_aspect(CVPixelBufferRef buf, const struct mp_image *mpi)
++{
++    int p_w = mpi->params.p_w;
++    int p_h = mpi->params.p_h;
++    if (!buf || p_w <= 0 || p_h <= 0 || p_w == p_h)
++        return;
++
++    CFNumberRef h = CFNumberCreate(NULL, kCFNumberIntType, &p_w);
++    CFNumberRef v = CFNumberCreate(NULL, kCFNumberIntType, &p_h);
++    const void *keys[] = {kCVImageBufferPixelAspectRatioHorizontalSpacingKey,
++                          kCVImageBufferPixelAspectRatioVerticalSpacingKey};
++    const void *values[] = {h, v};
++    CFDictionaryRef par = CFDictionaryCreate(NULL, keys, values, 2,
++                                             &kCFTypeDictionaryKeyCallBacks,
++                                             &kCFTypeDictionaryValueCallBacks);
++    CFRelease(h);
++    CFRelease(v);
++    if (par) {
++        CVBufferSetAttachment(buf, kCVImageBufferPixelAspectRatioKey, par,
++                              kCVAttachmentMode_ShouldPropagate);
++        CFRelease(par);
 +    }
 +}
 +
@@ -1088,6 +1116,7 @@ index 0000000000..8155d7a0e8
 +
 +        CMSampleBufferRef buf = NULL;
 +        CMFormatDescriptionRef format = NULL;
++        set_pixel_aspect(finalBuffer, mpi);
 +        OSStatus err = CMVideoFormatDescriptionCreateForImageBuffer(NULL, finalBuffer, &format);
 +        if (err != noErr || !format) {
 +            MP_ERR(vo, "Failed to create format description: %d\n", (int)err);
@@ -1302,6 +1331,7 @@ index 0000000000..8155d7a0e8
 +
 +                    CMFormatDescriptionRef format = NULL;
 +                    CMSampleBufferRef buf = NULL;
++                    set_pixel_aspect(composited, p->next_image);
 +                    OSStatus err = CMVideoFormatDescriptionCreateForImageBuffer(NULL, composited, &format);
 +                    if (err == noErr && format) {
 +                        err = CMSampleBufferCreateReadyWithImageBuffer(NULL, composited, format, &info, &buf);
