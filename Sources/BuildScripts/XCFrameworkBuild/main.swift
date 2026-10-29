@@ -422,6 +422,13 @@ private class BuildMPV: BaseBuild {
             "-Djpeg=disabled",
             "-Dvapoursynth=disabled",
             "-Drubberband=disabled",
+
+            // Never let mpv pick these up from the build machine (Homebrew ships them):
+            // none exist on iOS or tvOS and the app fails to link when they leak in.
+            "-Dsixel=disabled",
+            "-Ddvdnav=disabled",
+            "-Dx11=disabled",
+            "-Dx11-clipboard=disabled",
         ]
         if BaseBuild.options.enableGPL {
             array.append("-Dgpl=true")
